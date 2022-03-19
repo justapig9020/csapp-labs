@@ -168,7 +168,7 @@ bool queue_remove_head(queue_t *q, char *buf, size_t bufsize) {
         q->tail = &q->head;
 
     char *value = ele_free(oldh);
-    if (0 < bufsize) {
+    if (0 < bufsize && buf) {
         strncpy(buf, value, bufsize - 1);
         buf[bufsize - 1] = '\0';
     }
