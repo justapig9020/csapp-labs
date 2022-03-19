@@ -9,8 +9,7 @@
  * Developed for courses 15-213/18-213/15-513 by R. E. Bryant, 2017
  * Extended to store strings, 2018
  *
- * TODO: fill in your name and Andrew ID
- * @author XXX <XXX@andrew.cmu.edu>
+ * @author justapig9020 <justapig9020@gmail.com>
  */
 
 #include "queue.h"
