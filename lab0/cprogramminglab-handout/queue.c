@@ -46,7 +46,7 @@ static list_ele_t *ele_new(const char *s) {
  * @param[in] e The element to free
  * @return NULL if e is NULL, otherwise the value that the element holds
  */
-char *ele_free(list_ele_t *e) {
+static char *ele_free(list_ele_t *e) {
     if (!e)
         return NULL;
     char *value = e->value;
