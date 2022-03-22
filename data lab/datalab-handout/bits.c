@@ -157,7 +157,11 @@ long distinctNegation(long x) {
  *   Rating: 2
  */
 long anyEvenBit(long x) {
-    return 2L;
+    long mask = 0x55;
+    mask |= mask << 8;
+    mask |= mask << 16;
+    mask |= mask << 32;
+    return (long)(!!(x & mask));
 }
 // 3
 /*
