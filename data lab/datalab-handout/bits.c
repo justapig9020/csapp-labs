@@ -192,7 +192,7 @@ long isLessOrEqual(long x, long y) {
  */
 long replaceByte(long x, long n, long c) {
     long shift = n << 3; // n * 8
-    x &= ~(0xFFUL << shift);
+    x &= ~(0xFFL << shift);
     x |= c << shift;
     return x;
 }
