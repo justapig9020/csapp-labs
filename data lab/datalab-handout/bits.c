@@ -138,7 +138,11 @@ long copyLSB(long x) {
  *   Rating: 2
  */
 long dividePower2(long x, long n) {
-    return 2L;
+    long is_negative = ((unsigned long)x) >> 63;
+    long mask = x >> 63;
+    long round = (is_negative << n) + (is_negative ^ mask) + is_negative;
+    x += round;
+    return x >> n;
 }
 /*
  * distinctNegation - returns 1 if x != -x.
