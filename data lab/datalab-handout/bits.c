@@ -204,7 +204,9 @@ long replaceByte(long x, long n, long c) {
  *   Rating: 3
  */
 long conditional(long x, long y, long z) {
-    return 2L;
+    long condition = !!x;
+    long mask = (condition << 63) >> 63;
+    return (y & mask) | (z & ~mask);
 }
 /*
  * bitMask - Generate a mask consisting of all 1's
