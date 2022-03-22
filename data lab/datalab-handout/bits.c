@@ -191,7 +191,10 @@ long isLessOrEqual(long x, long y) {
  *   Rating: 3
  */
 long replaceByte(long x, long n, long c) {
-    return 2;
+    long shift = n << 3; // n * 8
+    x &= ~(0xFFUL << shift);
+    x |= c << shift;
+    return x;
 }
 /*
  * conditional - same as x ? y : z
