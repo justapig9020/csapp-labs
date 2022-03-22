@@ -125,7 +125,9 @@ extern int printf(const char *, ...);
  *   Rating: 2
  */
 long copyLSB(long x) {
-    return 2;
+    x <<= 63;
+    x >>= 63;
+    return x;
 }
 /*
  * dividePower2 - Compute x/(2^n), for 0 <= n <= 62
