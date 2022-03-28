@@ -280,5 +280,14 @@ long trueFiveEighths(long x) {
  *   Rating: 4
  */
 long logicalNeg(long x) {
-    return 2L;
+    long neg = 1L << 63;
+    x += neg;
+    // abs
+    long mask = x >> 63;
+    x = (x ^ mask) + (mask & 1);
+    // Now x is negative only if x is originally 0
+    x >>= 63;
+    x = ~x;
+    x += 1;
+    return x;
 }
