@@ -220,8 +220,8 @@ long conditional(long x, long y, long z) {
  */
 long bitMask(long highbit, long lowbit) {
     long neg1 = ~1L + 1;
-    long hi_mask = (1 << highbit) + neg1;
-    long lo_mask = (1 << lowbit) + neg1;
+    long hi_mask = (((1L << highbit) + neg1) << 1) + 1;
+    long lo_mask = (1L << lowbit) + neg1;
     return hi_mask & ~lo_mask;
 }
 // 4
