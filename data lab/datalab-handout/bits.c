@@ -219,7 +219,10 @@ long conditional(long x, long y, long z) {
  *   Rating: 3
  */
 long bitMask(long highbit, long lowbit) {
-    return 2L;
+    long neg1 = ~1L + 1;
+    long hi_mask = (1 << highbit) + neg1;
+    long lo_mask = (1 << lowbit) + neg1;
+    return hi_mask & ~lo_mask;
 }
 // 4
 /*
@@ -230,7 +233,29 @@ long bitMask(long highbit, long lowbit) {
  *   Rating: 4
  */
 long isPalindrome(long x) {
-    return 2L;
+    // 0x00000000ffffffff
+    long mask = ~((1L << 63) >> 31);
+    long prefix = (x >> 32) & mask;
+    long postfix = x & mask;
+    long rev_mask = (0xff << 8) | 0xff;
+    // 0x0000ffff 0xffff0000
+    prefix = ((prefix & rev_mask) << 16) | ((prefix & (~rev_mask)) >> 16);
+    // 0x00ff00ff 0xff00ff00
+    rev_mask = (0xff << 16) | 0xff;
+    prefix = ((prefix & rev_mask) << 8) | ((prefix & (~rev_mask)) >> 8);
+    // 0x0f0f0f0f 0xf0f0f0f0
+    rev_mask = (0xf << 8) | 0xf;
+    rev_mask = (rev_mask << 16) | rev_mask;
+    prefix = ((prefix & rev_mask) << 4) | ((prefix & (~rev_mask)) >> 4);
+    // 0x33333333
+    rev_mask = (0x33 << 8) | 0x33;
+    rev_mask = (rev_mask << 16) | rev_mask;
+    prefix = ((prefix & rev_mask) << 2) | ((prefix & (~rev_mask)) >> 2);
+    // 0x55555555
+    rev_mask = (0x55 << 8) | 0x55;
+    rev_mask = (rev_mask << 16) | rev_mask;
+    prefix = ((prefix & rev_mask) << 1) | ((prefix & (~rev_mask)) >> 1);
+    return !(prefix ^ postfix);
 }
 /*
  * trueFiveEighths - multiplies by 5/8 rounding toward 0,
