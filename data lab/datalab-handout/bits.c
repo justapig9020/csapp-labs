@@ -179,6 +179,15 @@ long anyEvenBit(long x) {
  *   Rating: 3
  */
 long isLessOrEqual(long x, long y) {
+    /*
+    // Case 1 different sign
+    // Case 2 same sign
+    // Case 3 equal
+    long xor = x ^ y;
+    long diff = !!((1L << 63) & xor&x);
+    long eq = !xor;
+    // long same =
+    */
     return 2;
 }
 /*
@@ -269,7 +278,20 @@ long isPalindrome(long x) {
  *  Rating: 4
  */
 long trueFiveEighths(long x) {
-    return 2L;
+    /*
+     * For positive
+     * x * 5 / 8 = x * (4 + 1) / 8 = (x * 4 + x) / 8
+     * = x / 2 + x / 8
+     * (x / 2 - e1) + (x / 8 - e2), e1 + e2 may greater than 1
+     * e1 = 0.(x & 1), e2 = 0.(x & 0x7)
+     */
+    long neg = !!(x >> 63);
+    long e1 = (x & 1L) << 2;
+    long e2 = (x & 7L);
+    long frac = e1 + e2;
+    long carry = frac >> 3;
+    long round = (!!(frac & 7)) & neg;
+    return (x >> 1) + (x >> 3) + carry + round;
 }
 /*
  * logicalNeg - implement the ! operator, using all of
