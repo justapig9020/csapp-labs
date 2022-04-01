@@ -179,16 +179,20 @@ long anyEvenBit(long x) {
  *   Rating: 3
  */
 long isLessOrEqual(long x, long y) {
+    // If x y have same sign, x ^ y's MSB is 0. 1 otherwise
+    long sign = !((x ^ y) >> 63);
+    // If x y have different sign and x is negative. Than x <= y always true
+    long diff = (!!(x >> 63)) & (!sign);
     /*
-    // Case 1 different sign
-    // Case 2 same sign
-    // Case 3 equal
-    long xor = x ^ y;
-    long diff = !!((1L << 63) & xor&x);
-    long eq = !xor;
-    // long same =
-    */
-    return 2;
+     * If x y have same sign, -x and y have different sign. Therefore, y - x
+     * never overflow. 0 <= y - x, if x is TMIN, -x is also TMIN. Since x, y
+     * have same sign. y is negative in this case, therefore y + x = y + TMIN
+     * always lead to a overflow and caused a positive number and always holds 0
+     * <= y - x
+     */
+    long neg_x = (~x) + 1;
+    long same = (!((y + neg_x) >> 63)) & sign;
+    return same | diff;
 }
 /*
  * replaceByte(x,n,c) - Replace byte n in x with c
