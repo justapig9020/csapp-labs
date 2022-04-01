@@ -182,7 +182,7 @@ long isLessOrEqual(long x, long y) {
     // If x y have same sign, x ^ y's MSB is 0. 1 otherwise
     long sign = !((x ^ y) >> 63);
     // If x y have different sign and x is negative. Than x <= y always true
-    long diff = (!!(x >> 63)) & (!sign);
+    long diff = (x >> 63) & (!sign);
     /*
      * If x y have same sign, -x and y have different sign. Therefore, y - x
      * never overflow. 0 <= y - x, if x is TMIN, -x is also TMIN. Since x, y
