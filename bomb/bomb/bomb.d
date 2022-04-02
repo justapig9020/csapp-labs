@@ -352,29 +352,49 @@ Disassembly of section .text:
   400ef2:	e8 43 05 00 00       	call   40143a <explode_bomb>
   400ef7:	48 83 c4 08          	add    rsp,0x8
   400efb:	c3                   	ret    
-
+// rdi => read_line
 0000000000400efc <phase_2>:
   400efc:	55                   	push   rbp
   400efd:	53                   	push   rbx
   400efe:	48 83 ec 28          	sub    rsp,0x28
-  400f02:	48 89 e6             	mov    rsi,rsp
+  400f02:	48 89 e6             	mov    rsi,rsp # void *buf = rsp
+  // Read 6 integers into rsp[0 - 5], rsp as a integer buffer.
   400f05:	e8 52 05 00 00       	call   40145c <read_six_numbers>
-  400f0a:	83 3c 24 01          	cmp    DWORD PTR [rsp],0x1
+  400f0a:	83 3c 24 01          	cmp    DWORD PTR [rsp],0x1 // rsp[0] == 1
   400f0e:	74 20                	je     400f30 <phase_2+0x34>
   400f10:	e8 25 05 00 00       	call   40143a <explode_bomb>
   400f15:	eb 19                	jmp    400f30 <phase_2+0x34>
-  400f17:	8b 43 fc             	mov    eax,DWORD PTR [rbx-0x4]
-  400f1a:	01 c0                	add    eax,eax
-  400f1c:	39 03                	cmp    DWORD PTR [rbx],eax
+
+  // A loop start
+  /*
+     rbx = &buf[1]
+     rbp = &buf[6]
+     while (rbx != rbp):
+      if rbx[0] != (rbx[-1] * 2):
+        explode_bomb()
+      rbx += 1
+   */
+  400f17:	8b 43 fc             	mov    eax,DWORD PTR [rbx-0x4] // eax = rbx[-1]
+  400f1a:	01 c0                	add    eax,eax // eax *= 2
+  400f1c:	39 03                	cmp    DWORD PTR [rbx],eax // rbx[0] == rbx[-1] * 2
+  /*
+   * if rbx[0] != (rbx[-1] * 2):
+   *    explode_bomb()
+   */
   400f1e:	74 05                	je     400f25 <phase_2+0x29>
   400f20:	e8 15 05 00 00       	call   40143a <explode_bomb>
-  400f25:	48 83 c3 04          	add    rbx,0x4
+  400f25:	48 83 c3 04          	add    rbx,0x4 // rbx += 1
   400f29:	48 39 eb             	cmp    rbx,rbp
+  // if rbx != rbp, keep looping
   400f2c:	75 e9                	jne    400f17 <phase_2+0x1b>
+  // Exit loop, defuse phase_2
   400f2e:	eb 0c                	jmp    400f3c <phase_2+0x40>
-  400f30:	48 8d 5c 24 04       	lea    rbx,[rsp+0x4]
-  400f35:	48 8d 6c 24 18       	lea    rbp,[rsp+0x18]
+
+  400f30:	48 8d 5c 24 04       	lea    rbx,[rsp+0x4] // rbx = &rsp[1]
+  400f35:	48 8d 6c 24 18       	lea    rbp,[rsp+0x18] // rbp = &rsp[6](another variable outside the buffer)
+  // Goto a loop
   400f3a:	eb db                	jmp    400f17 <phase_2+0x1b>
+
   400f3c:	48 83 c4 28          	add    rsp,0x28
   400f40:	5b                   	pop    rbx
   400f41:	5d                   	pop    rbp
@@ -384,15 +404,21 @@ Disassembly of section .text:
   400f43:	48 83 ec 18          	sub    rsp,0x18
   400f47:	48 8d 4c 24 0c       	lea    rcx,[rsp+0xc]
   400f4c:	48 8d 54 24 08       	lea    rdx,[rsp+0x8]
-  400f51:	be cf 25 40 00       	mov    esi,0x4025cf
+  400f51:	be cf 25 40 00       	mov    esi,0x4025cf // %d %d
   400f56:	b8 00 00 00 00       	mov    eax,0x0
+  // int a @ rsp + 0x8
+  // int b @ rsp + 0xc
+  // sscanf(str, "%d %d", &a, &b)
   400f5b:	e8 90 fc ff ff       	call   400bf0 <__isoc99_sscanf@plt>
   400f60:	83 f8 01             	cmp    eax,0x1
   400f63:	7f 05                	jg     400f6a <phase_3+0x27>
   400f65:	e8 d0 04 00 00       	call   40143a <explode_bomb>
+
+  // if a > 7:
+  //   explode_bomb()
   400f6a:	83 7c 24 08 07       	cmp    DWORD PTR [rsp+0x8],0x7
   400f6f:	77 3c                	ja     400fad <phase_3+0x6a>
-  400f71:	8b 44 24 08          	mov    eax,DWORD PTR [rsp+0x8]
+  400f71:	8b 44 24 08          	mov    eax,DWORD PTR [rsp+0x8] // eax = a
   400f75:	ff 24 c5 70 24 40 00 	jmp    QWORD PTR [rax*8+0x402470]
   400f7c:	b8 cf 00 00 00       	mov    eax,0xcf
   400f81:	eb 3b                	jmp    400fbe <phase_3+0x7b>
@@ -411,31 +437,55 @@ Disassembly of section .text:
   400fad:	e8 88 04 00 00       	call   40143a <explode_bomb>
   400fb2:	b8 00 00 00 00       	mov    eax,0x0
   400fb7:	eb 05                	jmp    400fbe <phase_3+0x7b>
-  400fb9:	b8 37 01 00 00       	mov    eax,0x137
-  400fbe:	3b 44 24 0c          	cmp    eax,DWORD PTR [rsp+0xc]
+  400fb9:	b8 37 01 00 00       	mov    eax,0x137 // 1
+  // if eax != b:
+  //   explode_bomb()
+  400fbe:	3b 44 24 0c          	cmp    eax,DWORD PTR [rsp+0xc] // eax == b
   400fc2:	74 05                	je     400fc9 <phase_3+0x86>
   400fc4:	e8 71 04 00 00       	call   40143a <explode_bomb>
   400fc9:	48 83 c4 18          	add    rsp,0x18
   400fcd:	c3                   	ret    
 
+
+// rdi rsi rdx rcx
+// func4(a, 0, 0xe)
+// if a == 7 -> return 0
 0000000000400fce <func4>:
+  /*
+  func4(a, rsi, rdx):
+    buf = edx - esi // e
+    tmp = a >>> 0x1f // 16 + 15 = 31
+    buf += tmp // e + 0 = e
+    buf >>= 1 // e >> 1 = 7
+    n = buf + rsi // buf + 0 = 7
+    // n == a -> return 0
+    if n <= a :
+      if n >= a:
+        return 0
+      ret = func(a, n + 1, rdx);
+      ret = ret * 2 + 1
+    else:
+      ret = func4(a, rsi, n - 1)
+      ret *= 2
+    return ret
+  */
   400fce:	48 83 ec 08          	sub    rsp,0x8
-  400fd2:	89 d0                	mov    eax,edx
-  400fd4:	29 f0                	sub    eax,esi
-  400fd6:	89 c1                	mov    ecx,eax
-  400fd8:	c1 e9 1f             	shr    ecx,0x1f
-  400fdb:	01 c8                	add    eax,ecx
-  400fdd:	d1 f8                	sar    eax,1
+  400fd2:	89 d0                	mov    eax,edx // eax = edx
+  400fd4:	29 f0                	sub    eax,esi // eax -= esi
+  400fd6:	89 c1                	mov    ecx,eax // ecx = eax
+  400fd8:	c1 e9 1f             	shr    ecx,0x1f // ecx >>>= 0x1f
+  400fdb:	01 c8                	add    eax,ecx // eax += ecx
+  400fdd:	d1 f8                	sar    eax,1 // eax >>= 1
   400fdf:	8d 0c 30             	lea    ecx,[rax+rsi*1]
   400fe2:	39 f9                	cmp    ecx,edi
   400fe4:	7e 0c                	jle    400ff2 <func4+0x24>
   400fe6:	8d 51 ff             	lea    edx,[rcx-0x1]
   400fe9:	e8 e0 ff ff ff       	call   400fce <func4>
   400fee:	01 c0                	add    eax,eax
-  400ff0:	eb 15                	jmp    401007 <func4+0x39>
+  400ff0:	eb 15                	jmp    401007 <func4+0x39> // end func
   400ff2:	b8 00 00 00 00       	mov    eax,0x0
   400ff7:	39 f9                	cmp    ecx,edi
-  400ff9:	7d 0c                	jge    401007 <func4+0x39>
+  400ff9:	7d 0c                	jge    401007 <func4+0x39> // end func
   400ffb:	8d 71 01             	lea    esi,[rcx+0x1]
   400ffe:	e8 cb ff ff ff       	call   400fce <func4>
   401003:	8d 44 00 01          	lea    eax,[rax+rax*1+0x1]
@@ -446,8 +496,12 @@ Disassembly of section .text:
   40100c:	48 83 ec 18          	sub    rsp,0x18
   401010:	48 8d 4c 24 0c       	lea    rcx,[rsp+0xc]
   401015:	48 8d 54 24 08       	lea    rdx,[rsp+0x8]
-  40101a:	be cf 25 40 00       	mov    esi,0x4025cf
+  40101a:	be cf 25 40 00       	mov    esi,0x4025cf // %d %d
   40101f:	b8 00 00 00 00       	mov    eax,0x0
+  // int a @ rsp + 0x8
+  // int b @ rsp + 0xc
+  // if sscanf(str, "%d %d", &a, &b) != 2:
+  //    explode_bomb()
   401024:	e8 c7 fb ff ff       	call   400bf0 <__isoc99_sscanf@plt>
   401029:	83 f8 02             	cmp    eax,0x2
   40102c:	75 07                	jne    401035 <phase_4+0x29>
@@ -456,7 +510,14 @@ Disassembly of section .text:
   401035:	e8 00 04 00 00       	call   40143a <explode_bomb>
   40103a:	ba 0e 00 00 00       	mov    edx,0xe
   40103f:	be 00 00 00 00       	mov    esi,0x0
-  401044:	8b 7c 24 08          	mov    edi,DWORD PTR [rsp+0x8]
+  401044:	8b 7c 24 08          	mov    edi,DWORD PTR [rsp+0x8] // a
+  // if a > 0xe:
+  //    explode_bomb()
+  // ret = func4(a, 0, 0xe); // return 0 if a == 7
+  // if ret != 0:
+  //    explode_bomb()
+  // if b != 0:
+  //    explode_bomb()
   401048:	e8 81 ff ff ff       	call   400fce <func4>
   40104d:	85 c0                	test   eax,eax
   40104f:	75 07                	jne    401058 <phase_4+0x4c>
@@ -469,17 +530,27 @@ Disassembly of section .text:
 0000000000401062 <phase_5>:
   401062:	53                   	push   rbx
   401063:	48 83 ec 20          	sub    rsp,0x20
-  401067:	48 89 fb             	mov    rbx,rdi
+  401067:	48 89 fb             	mov    rbx,rdi // rbx = str
   40106a:	64 48 8b 04 25 28 00 	mov    rax,QWORD PTR fs:0x28
   401071:	00 00 
-  401073:	48 89 44 24 18       	mov    QWORD PTR [rsp+0x18],rax
+  401073:	48 89 44 24 18       	mov    QWORD PTR [rsp+0x18],rax // canary
   401078:	31 c0                	xor    eax,eax
+  // len = string_length(str)
+  // if len != 6:
+  //    explode_bomb()
   40107a:	e8 9c 02 00 00       	call   40131b <string_length>
   40107f:	83 f8 06             	cmp    eax,0x6
   401082:	74 4e                	je     4010d2 <phase_5+0x70>
   401084:	e8 b1 03 00 00       	call   40143a <explode_bomb>
   401089:	eb 47                	jmp    4010d2 <phase_5+0x70>
-  40108b:	0f b6 0c 03          	movzx  ecx,BYTE PTR [rbx+rax*1]
+
+  // loop start
+  // for (i = 0; i != 6; i ++):
+  //    int rdx = str[i]
+  //    rdx &= 0xf
+  //    edx = data[rdx] // data = "
+  //    buf[i] = edx
+  40108b:	0f b6 0c 03          	movzx  ecx,BYTE PTR [rbx+rax*1] // move with zero extend
   40108f:	88 0c 24             	mov    BYTE PTR [rsp],cl
   401092:	48 8b 14 24          	mov    rdx,QWORD PTR [rsp]
   401096:	83 e2 0f             	and    edx,0xf
@@ -488,6 +559,7 @@ Disassembly of section .text:
   4010a4:	48 83 c0 01          	add    rax,0x1
   4010a8:	48 83 f8 06          	cmp    rax,0x6
   4010ac:	75 dd                	jne    40108b <phase_5+0x29>
+
   4010ae:	c6 44 24 16 00       	mov    BYTE PTR [rsp+0x16],0x0
   4010b3:	be 5e 24 40 00       	mov    esi,0x40245e
   4010b8:	48 8d 7c 24 10       	lea    rdi,[rsp+0x10]
@@ -499,6 +571,8 @@ Disassembly of section .text:
   4010d0:	eb 07                	jmp    4010d9 <phase_5+0x77>
   4010d2:	b8 00 00 00 00       	mov    eax,0x0
   4010d7:	eb b2                	jmp    40108b <phase_5+0x29>
+
+  // canary check
   4010d9:	48 8b 44 24 18       	mov    rax,QWORD PTR [rsp+0x18]
   4010de:	64 48 33 04 25 28 00 	xor    rax,QWORD PTR fs:0x28
   4010e5:	00 00 
@@ -515,17 +589,48 @@ Disassembly of section .text:
   4010fa:	55                   	push   rbp
   4010fb:	53                   	push   rbx
   4010fc:	48 83 ec 50          	sub    rsp,0x50
-  401100:	49 89 e5             	mov    r13,rsp
+  401100:	49 89 e5             	mov    r13,rsp // r13 = rsp
   401103:	48 89 e6             	mov    rsi,rsp
   401106:	e8 51 03 00 00       	call   40145c <read_six_numbers>
-  40110b:	49 89 e6             	mov    r14,rsp
-  40110e:	41 bc 00 00 00 00    	mov    r12d,0x0
-  401114:	4c 89 ed             	mov    rbp,r13
-  401117:	41 8b 45 00          	mov    eax,DWORD PTR [r13+0x0]
-  40111b:	83 e8 01             	sub    eax,0x1
+  40110b:	49 89 e6             	mov    r14,rsp // void *r14 = rsp
+  40110e:	41 bc 00 00 00 00    	mov    r12d,0x0 // r12d = 0 (r12d = r12 lower 32 bits)
+
+  /*
+
+  // 1. arg[i] - 1 <= 5, arg[i] <= 6, unsigned cmp
+  // 2. arg[i] != arg[j] for all i != j
+
+  r13 = buf
+  rsi = buf
+  read_six_numbers(str, buf)
+  r14 = buf
+  i = 0
+  int *ptr = buf // r13
+  do {
+    if (ptr[0] - 1) > 5: // ptr[0] = arg[i], unsigned
+      explode_bomb
+
+    i += 1
+    if i == 6:
+      break outer
+    ebx = i
+    do {
+      long rax = ebx // sign extend
+      eax = buf[rax]
+      if eax == ptr[0]:
+        explode_bomb
+      ebx += 1
+    } while ebx <= 5
+    ptr += 1
+  }
+  */
+  401114:	4c 89 ed             	mov    rbp,r13 // rbp = r13
+  401117:	41 8b 45 00          	mov    eax,DWORD PTR [r13+0x0] // eax = rsp[0]
+  40111b:	83 e8 01             	sub    eax,0x1 // eax - 1
   40111e:	83 f8 05             	cmp    eax,0x5
   401121:	76 05                	jbe    401128 <phase_6+0x34>
   401123:	e8 12 03 00 00       	call   40143a <explode_bomb>
+
   401128:	41 83 c4 01          	add    r12d,0x1
   40112c:	41 83 fc 06          	cmp    r12d,0x6
   401130:	74 21                	je     401153 <phase_6+0x5f>
@@ -540,55 +645,138 @@ Disassembly of section .text:
   40114b:	7e e8                	jle    401135 <phase_6+0x41>
   40114d:	49 83 c5 04          	add    r13,0x4
   401151:	eb c1                	jmp    401114 <phase_6+0x20>
+  // End
+
+  /*
+  // n = 7 - i
+  // i = 7 - n
+  //  buf = buf.map(i -> 7-i)
+  int *bound = rsp + 0x18 // &rsp[6] = &buf[0]
+  int *ptr = &buf[0]
+  ecx = 7
+  do {
+    *ptr = 7 - *ptr
+    ptr += 1
+  } while ptr != bound
+  */
   401153:	48 8d 74 24 18       	lea    rsi,[rsp+0x18]
-  401158:	4c 89 f0             	mov    rax,r14
+  401158:	4c 89 f0             	mov    rax,r14 // r14 = rsp
   40115b:	b9 07 00 00 00       	mov    ecx,0x7
-  401160:	89 ca                	mov    edx,ecx
-  401162:	2b 10                	sub    edx,DWORD PTR [rax]
-  401164:	89 10                	mov    DWORD PTR [rax],edx
-  401166:	48 83 c0 04          	add    rax,0x4
-  40116a:	48 39 f0             	cmp    rax,rsi
-  40116d:	75 f1                	jne    401160 <phase_6+0x6c>
+  // loop start
+    401160:	89 ca                	mov    edx,ecx
+    401162:	2b 10                	sub    edx,DWORD PTR [rax] // edx = edx - *rax
+    401164:	89 10                	mov    DWORD PTR [rax],edx
+    401166:	48 83 c0 04          	add    rax,0x4
+    40116a:	48 39 f0             	cmp    rax,rsi
+    40116d:	75 f1                	jne    401160 <phase_6+0x6c>
+  // loop end
+
+  /*
+  // long *nodes = rsp + 0x20
+  // n = buf[i]
+  // nodes[i] = node[n], if n > 1
+  //           node[1], if n <= 1
+  i = 0 // i = esi
+  do {
+    n = buf[i]
+    if n <= 1:
+      tmp = node1 // 0x6032d0
+    else:
+      eax = 1
+      tmp = node1 // 0x6032d0
+      do 
+        tmp = tmp.next // tmp.next @ tmp[1]
+        eax += 1
+      while eax != n
+    // long *nodes = rsp + 0x20
+    nodes[i] = tmp
+    i += 1
+  } while i != 6
+  */
   40116f:	be 00 00 00 00       	mov    esi,0x0
   401174:	eb 21                	jmp    401197 <phase_6+0xa3>
+
   401176:	48 8b 52 08          	mov    rdx,QWORD PTR [rdx+0x8]
   40117a:	83 c0 01             	add    eax,0x1
   40117d:	39 c8                	cmp    eax,ecx
   40117f:	75 f5                	jne    401176 <phase_6+0x82>
   401181:	eb 05                	jmp    401188 <phase_6+0x94>
+
   401183:	ba d0 32 60 00       	mov    edx,0x6032d0
   401188:	48 89 54 74 20       	mov    QWORD PTR [rsp+rsi*2+0x20],rdx
   40118d:	48 83 c6 04          	add    rsi,0x4
   401191:	48 83 fe 18          	cmp    rsi,0x18
-  401195:	74 14                	je     4011ab <phase_6+0xb7>
+  401195:	74 14                	je     4011ab <phase_6+0xb7> // break
   401197:	8b 0c 34             	mov    ecx,DWORD PTR [rsp+rsi*1]
   40119a:	83 f9 01             	cmp    ecx,0x1
-  40119d:	7e e4                	jle    401183 <phase_6+0x8f>
+  40119d:	7e e4                	jle    401183 <phase_6+0x8f> // backward
+
   40119f:	b8 01 00 00 00       	mov    eax,0x1
   4011a4:	ba d0 32 60 00       	mov    edx,0x6032d0
   4011a9:	eb cb                	jmp    401176 <phase_6+0x82>
-  4011ab:	48 8b 5c 24 20       	mov    rbx,QWORD PTR [rsp+0x20]
-  4011b0:	48 8d 44 24 28       	lea    rax,[rsp+0x28]
-  4011b5:	48 8d 74 24 50       	lea    rsi,[rsp+0x50]
-  4011ba:	48 89 d9             	mov    rcx,rbx
+  // end
+
+
+  // rsp + 0x20 is nodes
+  /*
+  // nodes[0] -> nodes[1] ....
+  // nodes[i] -> nodes[i + 1]
+  struct node *rbx = nodes[0]
+  struct node **ptr = &nodes[1]
+  struct node **bound = &nodes[6]
+  struct node *prev = rbx
+  
+  loop {
+    struct node *curr = *ptr
+    prev.next = curr
+    ptr += 1
+    if ptr == bound:
+      break
+    prev = curr
+  }
+  curr.next = NULL
+  */
+  4011ab:	48 8b 5c 24 20       	mov    rbx,QWORD PTR [rsp+0x20] // rbx = nodes[0]
+  4011b0:	48 8d 44 24 28       	lea    rax,[rsp+0x28] // rax = &buf[1]
+  4011b5:	48 8d 74 24 50       	lea    rsi,[rsp+0x50] // rsi = &buf[6]
+  4011ba:	48 89 d9             	mov    rcx,rbx // rcx = nodes[0]
+
   4011bd:	48 8b 10             	mov    rdx,QWORD PTR [rax]
   4011c0:	48 89 51 08          	mov    QWORD PTR [rcx+0x8],rdx
   4011c4:	48 83 c0 08          	add    rax,0x8
   4011c8:	48 39 f0             	cmp    rax,rsi
-  4011cb:	74 05                	je     4011d2 <phase_6+0xde>
+  4011cb:	74 05                	je     4011d2 <phase_6+0xde> // break
   4011cd:	48 89 d1             	mov    rcx,rdx
-  4011d0:	eb eb                	jmp    4011bd <phase_6+0xc9>
+  4011d0:	eb eb                	jmp    4011bd <phase_6+0xc9> // loop
   4011d2:	48 c7 42 08 00 00 00 	mov    QWORD PTR [rdx+0x8],0x0
+  // end
+
   4011d9:	00 
-  4011da:	bd 05 00 00 00       	mov    ebp,0x5
-  4011df:	48 8b 43 08          	mov    rax,QWORD PTR [rbx+0x8]
-  4011e3:	8b 00                	mov    eax,DWORD PTR [rax]
+
+  // rbx = nodes[0] // A pointer to first node
+  /*
+    // Check whether the list is sorted in decreasing order or not.
+    i = 5 // i = ebp
+    curr = nodes[0]
+    do {
+      next = curr.next
+      if curr.value < next.value:
+        explode_bomb
+      curr = curr.next
+      i -= 1
+    } while i >= 0
+  */
+  4011da:	bd 05 00 00 00       	mov    ebp,0x5 // ebp = 5
+  4011df:	48 8b 43 08          	mov    rax,QWORD PTR [rbx+0x8] // rax = node[1]
+  4011e3:	8b 00                	mov    eax,DWORD PTR [rax] // eax = rax.value
   4011e5:	39 03                	cmp    DWORD PTR [rbx],eax
   4011e7:	7d 05                	jge    4011ee <phase_6+0xfa>
   4011e9:	e8 4c 02 00 00       	call   40143a <explode_bomb>
   4011ee:	48 8b 5b 08          	mov    rbx,QWORD PTR [rbx+0x8]
   4011f2:	83 ed 01             	sub    ebp,0x1
   4011f5:	75 e8                	jne    4011df <phase_6+0xeb>
+  // End
+
   4011f7:	48 83 c4 50          	add    rsp,0x50
   4011fb:	5b                   	pop    rbx
   4011fc:	5d                   	pop    rbp
@@ -801,18 +989,23 @@ Disassembly of section .text:
   401452:	bf 08 00 00 00       	mov    edi,0x8
   401457:	e8 c4 f7 ff ff       	call   400c20 <exit@plt>
 
+// Input: A string str
+//        A integer buffer buf
+// Parse str into 6 integers and save them in buf inorder
 000000000040145c <read_six_numbers>:
   40145c:	48 83 ec 18          	sub    rsp,0x18
-  401460:	48 89 f2             	mov    rdx,rsi
-  401463:	48 8d 4e 04          	lea    rcx,[rsi+0x4]
-  401467:	48 8d 46 14          	lea    rax,[rsi+0x14]
-  40146b:	48 89 44 24 08       	mov    QWORD PTR [rsp+0x8],rax
+  401460:	48 89 f2             	mov    rdx,rsi // void *rdx = buf
+  401463:	48 8d 4e 04          	lea    rcx,[rsi+0x4] // void *rcx = buf + 4
+  401467:	48 8d 46 14          	lea    rax,[rsi+0x14] // void *rax = buf + 0x14
+  40146b:	48 89 44 24 08       	mov    QWORD PTR [rsp+0x8],rax // void *p1(rsp + 0x8) = buf + 0x14
   401470:	48 8d 46 10          	lea    rax,[rsi+0x10]
-  401474:	48 89 04 24          	mov    QWORD PTR [rsp],rax
+  401474:	48 89 04 24          	mov    QWORD PTR [rsp],rax // void *p2(rsp) = buf + 0x10
   401478:	4c 8d 4e 0c          	lea    r9,[rsi+0xc]
   40147c:	4c 8d 46 08          	lea    r8,[rsi+0x8]
-  401480:	be c3 25 40 00       	mov    esi,0x4025c3
+  401480:	be c3 25 40 00       	mov    esi,0x4025c3 // %d %d %d %d %d %d
   401485:	b8 00 00 00 00       	mov    eax,0x0
+  // RDI, RSI, RDX, RCX, R8, R9
+  // 6 int read into: buf[0-5]
   40148a:	e8 61 f7 ff ff       	call   400bf0 <__isoc99_sscanf@plt>
   40148f:	83 f8 05             	cmp    eax,0x5
   401492:	7f 05                	jg     401499 <read_six_numbers+0x3d>
