@@ -305,8 +305,8 @@ long trueFiveEighths(long x) {
  *   Rating: 4
  */
 long logicalNeg(long x) {
-    long neg = 1L << 63;
-    x += neg;
+    long tmin = 1L << 63;
+    x += tmin;
     // abs
     long mask = x >> 63;
     x = (x ^ mask) + (mask & 1);
