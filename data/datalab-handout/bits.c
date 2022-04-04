@@ -139,8 +139,7 @@ long copyLSB(long x) {
  */
 long dividePower2(long x, long n) {
     long is_negative = !!(x >> 63);
-    long mask = x >> 63;
-    long round = (is_negative << n) + (is_negative ^ mask) + is_negative;
+    long round = (is_negative << n) + (~is_negative) + 1;
     x += round;
     return x >> n;
 }
@@ -306,8 +305,8 @@ long trueFiveEighths(long x) {
  *   Rating: 4
  */
 long logicalNeg(long x) {
-    long neg = 1L << 63;
-    x += neg;
+    long tmin = 1L << 63;
+    x += tmin;
     // abs
     long mask = x >> 63;
     x = (x ^ mask) + (mask & 1);
