@@ -10,6 +10,7 @@
  * @author XXX <XXX@andrew.cmu.edu>
  */
 
+#include "harness.h"
 #include <stdbool.h>
 #include <stddef.h>
 
