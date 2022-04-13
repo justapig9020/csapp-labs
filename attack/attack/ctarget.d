@@ -784,8 +784,8 @@ Disassembly of section .text:
   4017bd:	c3                   	ret    
   4017be:	90                   	nop
   4017bf:	90                   	nop
-  00000000004017c0 <touch1>:
 
+00000000004017c0 <touch1>:
   4017c0:	48 83 ec 08          	sub    rsp,0x8
   4017c4:	c7 05 0e 2d 20 00 01 	mov    DWORD PTR [rip+0x202d0e],0x1        # 6044dc <vlevel>
   4017cb:	00 00 00 
@@ -801,6 +801,7 @@ Disassembly of section .text:
   4017f0:	89 fa                	mov    edx,edi
   4017f2:	c7 05 e0 2c 20 00 02 	mov    DWORD PTR [rip+0x202ce0],0x2        # 6044dc <vlevel>
   4017f9:	00 00 00 
+  // edi = cookie
   4017fc:	3b 3d e2 2c 20 00    	cmp    edi,DWORD PTR [rip+0x202ce2]        # 6044e4 <cookie>
   401802:	75 20                	jne    401824 <touch2+0x38>
   401804:	be e8 30 40 00       	mov    esi,0x4030e8
