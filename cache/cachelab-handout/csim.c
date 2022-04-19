@@ -6,9 +6,11 @@
 #include "cachelab.h"
 #include <stdbool.h>
 
+#define VERBOSE(...) if (verbose_mode) printf(__VA_ARGS__)
 #define ADDR_LEN 64
 #define IS_HIT(n) ((n) != -1)
 
+bool verbose_mode = false;
 typedef unsigned long addr_t;
 
 struct Args {
@@ -37,6 +39,7 @@ typedef enum {
 struct Trace {
     addr_t addr;
     Operation op;
+    size_t size;
 };
 
 static addr_t pow_2(addr_t exp) {
@@ -45,8 +48,11 @@ static addr_t pow_2(addr_t exp) {
 
 static void parse_arg(int argc, char *argv[], struct Args *parsed) {
     int cmd;
-    while ((cmd = getopt(argc, argv, "s:E:b:t:")) != -1) {
+    while ((cmd = getopt(argc, argv, "vs:E:b:t:")) != -1) {
         switch (cmd) {
+        case 'v':
+            verbose_mode = true;
+            break;
         case 's':
             parsed->set_index_bits = atoi(optarg);
             break;
@@ -236,7 +242,7 @@ static void cache_update_hit(struct CacheLine *line, int idx, size_t set_num) {
     sets[idx].lru = 0;
 }
 
-static void cache_access(struct Cache *cache, addr_t addr) {
+static AccResult cache_access(struct Cache *cache, addr_t addr) {
     struct CacheLine *line = accessing_line(cache, addr);
     addr_t tag = addr_to_tag(addr, cache->block_size_bit, cache->idx_size_bit);
     size_t set_num = cache->set_num;
@@ -246,19 +252,26 @@ static void cache_access(struct Cache *cache, addr_t addr) {
         int index = result;
         cache_update_hit(line, index, set_num);
         cache->record.hit += 1;
+        return Hit;
     } else {
         bool is_eviction = cache_update_miss(line, tag, set_num);
         cache->record.miss += 1;
         cache->record.eviction += is_eviction;
+        return Miss;
     }
 }
 
-static void cache_access_times(struct Cache *cache, addr_t addr, size_t times) {
-    for (int i=0; i<times; i++)
-        cache_access(cache, addr);
+static int cache_access_times(struct Cache *cache, addr_t addr, size_t times) {
+    int hit_times = 0;
+    for (int i=0; i<times; i++) {
+        AccResult is_hit = cache_access(cache, addr);
+        hit_times += is_hit;
+    }
+    return hit_times;
 }
 
-static void sim_cache_access(struct Cache *cache, struct Trace *trace) {
+// Return hit times
+static int sim_cache_access(struct Cache *cache, struct Trace *trace) {
     size_t times;
     switch (trace->op) {
     case Load:
@@ -271,7 +284,8 @@ static void sim_cache_access(struct Cache *cache, struct Trace *trace) {
     default:
         times = 0;
     }
-    cache_access_times(cache, trace->addr, times);
+    int hit_times = cache_access_times(cache, trace->addr, times);
+    return hit_times;
 }
 
 static struct Record *get_record(struct Cache *cache) {
@@ -339,24 +353,60 @@ static bool scan_operation(const char **buf, Operation *op) {
     return ret;
 }
 
+static bool is_hex(char c) {
+    switch (c) {
+    case '0'...'9':
+    case 'a'...'f':
+        return true;
+    default:
+        return false;
+    }
+}
+
+static const char *pass_hex(const char *buf) {
+    const char *ptr = buf;
+    while (is_hex(*ptr))
+        ptr += 1;
+    return ptr;
+}
+
 static bool scan_address(const char **buf, addr_t *addr) {
     const char *ptr = *buf;
     ptr = next_word(ptr);
     int matched = sscanf(ptr, "%lx", addr);
+    ptr = pass_hex(ptr);
+    *buf = ptr;
+    return matched == 1;
+}
+
+static bool scan_access_size(const char **buf, size_t *size) {
+    const char *ptr = *buf;
+
+    ptr = next_word(ptr);
+    if (ptr[0] != ',')
+        return false;
+
+    ptr = next_word(ptr + 1);
+    int matched = sscanf(ptr, "%lx", size);
     return matched == 1;
 }
 
 static bool parse_trace_line(const char *line, ssize_t len, struct Trace *trace) {
     Operation op;
     addr_t addr;
+    size_t size;
     if (!scan_operation(&line, &op))
         return false;
 
     if (!scan_address(&line, &addr))
         return false;
     
+    if (!scan_access_size(&line, &size))
+        return false;
+
     trace->addr = addr;
     trace->op = op;
+    trace->size = size;
     return true;
 }
 
@@ -390,6 +440,31 @@ static void free_trace_parser(struct TraceParser *parser) {
     free(parser);
 }
 
+static char operation_to_char(Operation op) {
+    switch (op) {
+    case Load:
+        return 'L';
+    case Store:
+        return 'S';
+    case Modify:
+        return 'M';
+    default:
+        return ' ';
+    }
+}
+
+static void verbose(struct Trace *trace, int hits) {
+    const char op = operation_to_char(trace->op);
+    VERBOSE("%c %lx,%ld", op, trace->addr, trace->size);
+    if (hits == 0) {
+        VERBOSE(" miss");
+    } else {
+        for (int i=0; i<hits; i++)
+            VERBOSE(" hit");
+    }
+    VERBOSE(" \n");
+}
+
 int main(int argc, char *argv[])
 {
     struct Args parsed;
@@ -404,7 +479,8 @@ int main(int argc, char *argv[])
 
     struct Trace trace;
     while (next_data_trace(parser, &trace)) {
-        sim_cache_access(cache, &trace);
+        int hits = sim_cache_access(cache, &trace);
+        verbose(&trace, hits);
     }
 
     struct Record *record = get_record(cache);
