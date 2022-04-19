@@ -7,7 +7,9 @@
 #include <stdbool.h>
 
 #define ADDR_LEN 64
-typedef long addr_t;
+#define IS_HIT(n) ((n) != -1)
+
+typedef unsigned long addr_t;
 
 struct Args {
     int set_index_bits;
@@ -27,15 +29,24 @@ typedef enum {
     Modify,
 } Operation;
 
+typedef enum {
+    Miss = 0,
+    Hit,
+} AccResult;
+
 struct Trace {
     addr_t addr;
     Operation op;
 };
 
+static addr_t pow_2(addr_t exp) {
+    return 1L << exp;
+}
+
 static void parse_arg(int argc, char *argv[], struct Args *parsed) {
     int cmd;
     while ((cmd = getopt(argc, argv, "s:E:b:t:")) != -1) {
-        switch(cmd) {
+        switch (cmd) {
         case 's':
             parsed->set_index_bits = atoi(optarg);
             break;
@@ -64,8 +75,9 @@ struct CacheLine {
 
 struct Cache {
     size_t set_num;
-    size_t idx_size;
-    size_t tag_size;
+    addr_t tag_size;
+    size_t idx_size_bit;
+    size_t block_size_bit;
     struct CacheLine *lines;
 };
 
@@ -86,7 +98,7 @@ static struct Cache *new_cache(int associativity, int index_size_bit, int block_
 
     if (index_size_bit >= ADDR_LEN)
         return NULL;
-    addr_t index_size = 1 << index_size_bit;
+    addr_t index_size = pow_2(index_size_bit);
 
     addr_t tag_size = ADDR_LEN - index_size_bit - block_size_bit;
 
@@ -106,9 +118,10 @@ static struct Cache *new_cache(int associativity, int index_size_bit, int block_
         inited += 1;
     }
     cache->set_num = associativity;
-    cache->idx_size = index_size;
+    cache->idx_size_bit = index_size_bit;
     cache->tag_size = tag_size;
     cache->lines = lines;
+    cache->block_size_bit = block_size_bit;
     return cache;
 
 free_lines:
@@ -120,8 +133,127 @@ free_cache:
     return NULL;
 }
 
-static void cache_access(struct Cache *cache, struct Trace *trace) {
+static size_t addr_to_line_idx(addr_t addr, addr_t block_size_bit, addr_t idx_size_bit) {
+    addr_t avoid_block = addr >> block_size_bit;
+    addr_t idx_size = pow_2(idx_size_bit);
+    addr_t index_mask = idx_size - 1;
+    return avoid_block & index_mask;
+}
 
+static size_t addr_to_tag(addr_t addr, addr_t block_size_bit, addr_t idx_size_bit) {
+    return addr >> (block_size_bit + idx_size_bit);
+}
+
+static struct CacheLine *accessing_line(struct Cache *cache, addr_t addr) {
+    addr_t idx = addr_to_line_idx(addr, cache->block_size_bit, cache->idx_size_bit);
+    return &cache->lines[idx];
+}
+
+static bool is_entry_hit(struct CacheEntry *entry, addr_t tag) {
+    bool tag_match = tag == entry->tag;
+    return entry->valid && tag_match;
+}
+
+static int try_access_line(struct CacheLine *line, addr_t tag, size_t set_num) {
+    struct CacheEntry *sets = line->sets;
+    for (int i=0; i<set_num; i++) {
+        if (is_entry_hit(&sets[i], tag))
+            return i;
+    }
+    return -1;
+}
+
+static int find_victim(struct CacheLine *line, size_t set_num) {
+    struct CacheEntry *sets = line->sets;
+    const size_t target = set_num - 1;
+    for (int i=0; i<set_num; i++) {
+        if (!sets[i].valid)
+            return -1;
+        if (sets[i].lru == target)
+            return i;
+    }
+    return -1;
+}
+
+static int find_slot(struct CacheLine *line, size_t set_num) {
+    struct CacheEntry *sets = line->sets;
+    for (int i=0; i<set_num; i++)
+        if (!sets[i].valid)
+            return i;
+    return -1;
+}
+
+/*
+ * Increase all valid lru values which less than "target".
+ */
+static void update_lru(struct CacheEntry *sets, long target, size_t set_num) {
+    for (int i=0; i<set_num; i++)
+        if (sets[i].valid && sets[i].lru < target)
+            sets[i].lru += 1;
+}
+
+static void cache_update_miss(struct CacheLine *line, addr_t tag, size_t set_num) {
+    int victim = find_victim(line, set_num);
+    struct CacheEntry *sets = line->sets;
+
+    if (-1 != victim) {
+        long vic_lru = sets[victim].lru;
+        update_lru(sets, vic_lru, set_num);
+        sets[victim].tag = tag;
+        sets[victim].lru = 0;
+    } else {
+        int slot = find_slot(line, set_num);
+        if (slot < 0)
+            exit(2);
+        update_lru(sets, set_num - 1, set_num);
+        sets[slot].tag = tag;
+        sets[slot].lru = 0;
+        sets[slot].valid = true;
+    }
+}
+
+static void cache_update_hit(struct CacheLine *line, int idx, size_t set_num) {
+    struct CacheEntry *sets = line->sets;
+    long hit_lru = sets[idx].lru;
+    update_lru(sets, hit_lru, set_num);
+    sets[idx].lru = 0;
+}
+
+static void cache_access(struct Cache *cache, addr_t addr) {
+    struct CacheLine *line = accessing_line(cache, addr);
+    addr_t tag = addr_to_tag(addr, cache->block_size_bit, cache->idx_size_bit);
+    size_t set_num = cache->set_num;
+
+    int result = try_access_line(line, tag, set_num);
+    if (IS_HIT(result)) {
+        printf("%lx HIT\n", addr);
+        int index = result;
+        cache_update_hit(line, index, set_num);
+    } else {
+        printf("%lx MISS\n", addr);
+        cache_update_miss(line, tag, set_num);
+    }
+}
+
+static void cache_access_times(struct Cache *cache, addr_t addr, size_t times) {
+    for (int i=0; i<times; i++)
+        cache_access(cache, addr);
+}
+
+static void sim_cache_access(struct Cache *cache, struct Trace *trace) {
+    size_t times;
+    switch (trace->op) {
+    case Load:
+    case Store: // Both load and store makes 1 access;
+        times = 1;
+        break;
+    case Modify:
+        times = 2;
+        break;
+    default:
+        times = 0;
+    }
+    cache_access_times(cache, trace->addr, times);
 }
 
 static void free_cache(struct Cache *cache) {
@@ -162,7 +294,7 @@ static bool scan_operation(const char **buf, Operation *op) {
     bool ret = true;
     const char *ptr = *buf;
     ptr = next_word(ptr);
-    switch(ptr[0]) {
+    switch (ptr[0]) {
     case 'I':
         *op = Inst;
         break;
@@ -249,7 +381,7 @@ int main(int argc, char *argv[])
 
     struct Trace trace;
     while (next_data_trace(parser, &trace)) {
-        cache_access(cache, &trace);
+        sim_cache_access(cache, &trace);
     }
 
     free_trace_parser(parser);
