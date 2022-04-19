@@ -73,11 +73,18 @@ struct CacheLine {
     struct CacheEntry *sets;
 };
 
+struct Record {
+    int hit;
+    int miss;
+    int eviction;
+};
+
 struct Cache {
     size_t set_num;
     addr_t tag_size;
     size_t idx_size_bit;
     size_t block_size_bit;
+    struct Record record;
     struct CacheLine *lines;
 };
 
@@ -90,6 +97,12 @@ static bool init_cache_line(struct CacheLine *line, addr_t associativity) {
     }
     line->sets = entries;
     return true;
+}
+
+static void init_record(struct Record *record) {
+    record->hit = 0;
+    record->miss = 0;
+    record->eviction = 0;
 }
 
 static struct Cache *new_cache(int associativity, int index_size_bit, int block_size_bit) {
@@ -122,6 +135,7 @@ static struct Cache *new_cache(int associativity, int index_size_bit, int block_
     cache->tag_size = tag_size;
     cache->lines = lines;
     cache->block_size_bit = block_size_bit;
+    init_record(&cache->record);
     return cache;
 
 free_lines:
@@ -192,7 +206,8 @@ static void update_lru(struct CacheEntry *sets, long target, size_t set_num) {
             sets[i].lru += 1;
 }
 
-static void cache_update_miss(struct CacheLine *line, addr_t tag, size_t set_num) {
+// Return true if eviction some entry, false returned otherwise.
+static bool cache_update_miss(struct CacheLine *line, addr_t tag, size_t set_num) {
     int victim = find_victim(line, set_num);
     struct CacheEntry *sets = line->sets;
 
@@ -201,6 +216,7 @@ static void cache_update_miss(struct CacheLine *line, addr_t tag, size_t set_num
         update_lru(sets, vic_lru, set_num);
         sets[victim].tag = tag;
         sets[victim].lru = 0;
+        return true;
     } else {
         int slot = find_slot(line, set_num);
         if (slot < 0)
@@ -209,6 +225,7 @@ static void cache_update_miss(struct CacheLine *line, addr_t tag, size_t set_num
         sets[slot].tag = tag;
         sets[slot].lru = 0;
         sets[slot].valid = true;
+        return false;
     }
 }
 
@@ -226,12 +243,13 @@ static void cache_access(struct Cache *cache, addr_t addr) {
 
     int result = try_access_line(line, tag, set_num);
     if (IS_HIT(result)) {
-        printf("%lx HIT\n", addr);
         int index = result;
         cache_update_hit(line, index, set_num);
+        cache->record.hit += 1;
     } else {
-        printf("%lx MISS\n", addr);
-        cache_update_miss(line, tag, set_num);
+        bool is_eviction = cache_update_miss(line, tag, set_num);
+        cache->record.miss += 1;
+        cache->record.eviction += is_eviction;
     }
 }
 
@@ -254,6 +272,12 @@ static void sim_cache_access(struct Cache *cache, struct Trace *trace) {
         times = 0;
     }
     cache_access_times(cache, trace->addr, times);
+}
+
+static struct Record *get_record(struct Cache *cache) {
+    if (cache)
+        return &cache->record;
+    return NULL;
 }
 
 static void free_cache(struct Cache *cache) {
@@ -343,7 +367,6 @@ static bool next_trace(struct TraceParser *parser, struct Trace *trace) {
     ssize_t get = getline(&line_buf, &n, parser->trace);
     if (get != -1) {
         line_buf[get] = '\0';
-        printf("%s", line_buf);
         ret = parse_trace_line(line_buf, get, trace);
     }
     free(line_buf);
@@ -384,13 +407,13 @@ int main(int argc, char *argv[])
         sim_cache_access(cache, &trace);
     }
 
+    struct Record *record = get_record(cache);
+    printSummary(record->hit, record->miss, record->eviction);
     free_trace_parser(parser);
     free_cache(cache);
-    printSummary(0, 0, 0);
     return 0;
 
 free_cache:
-    printf("Free cache\n");
     free_cache(cache);
 fail:
     return 1;
