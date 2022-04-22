@@ -31,3 +31,6 @@ clean:
 	rm -f test-trans tracegen
 	rm -f trace.all trace.f*
 	rm -f .csim_results .marker
+
+format:
+	clang-format -style=file -i csim.c trans.c

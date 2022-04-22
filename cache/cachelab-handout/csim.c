@@ -2,13 +2,15 @@
 
 #include <stddef.h>
 #define _POSIX_C_SOURCE 200809L
+#include "cachelab.h"
+#include <getopt.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <getopt.h>
-#include "cachelab.h"
-#include <stdbool.h>
 
-#define VERBOSE(...) if (verbose_mode) printf(__VA_ARGS__)
+#define VERBOSE(...)                                                           \
+    if (verbose_mode)                                                          \
+    printf(__VA_ARGS__)
 #define ADDR_LEN 64
 #define IS_HIT(n) ((n) != -1)
 
@@ -72,7 +74,7 @@ static void parse_arg(int argc, char *argv[], struct Args *parsed) {
 }
 
 struct CacheEntry {
-    bool valid; 
+    bool valid;
     addr_t tag;
     long lru;
 };
@@ -100,7 +102,7 @@ static bool init_cache_line(struct CacheLine *line, addr_t associativity) {
     struct CacheEntry *entries = malloc(sizeof(*entries) * associativity);
     if (!entries)
         return false;
-    for (int i=0; i<associativity; i++) {
+    for (int i = 0; i < associativity; i++) {
         entries[i].valid = false;
     }
     line->sets = entries;
@@ -113,7 +115,8 @@ static void init_record(struct Record *record) {
     record->eviction = 0;
 }
 
-static struct Cache *new_cache(int associativity, int index_size_bit, int block_size_bit) {
+static struct Cache *new_cache(int associativity, int index_size_bit,
+                               int block_size_bit) {
     if (block_size_bit >= ADDR_LEN)
         return NULL;
 
@@ -126,13 +129,13 @@ static struct Cache *new_cache(int associativity, int index_size_bit, int block_
     struct Cache *cache = malloc(sizeof(*cache));
     if (!cache)
         return NULL;
-    
-    struct CacheLine * lines= malloc(sizeof(struct CacheLine) * index_size);
+
+    struct CacheLine *lines = malloc(sizeof(struct CacheLine) * index_size);
     if (!lines)
         goto free_cache;
 
     int inited = 0;
-    for (int i=0; i<index_size; i++) {
+    for (int i = 0; i < index_size; i++) {
         bool ret = init_cache_line(&lines[i], associativity);
         if (!ret)
             goto free_lines;
@@ -147,7 +150,7 @@ static struct Cache *new_cache(int associativity, int index_size_bit, int block_
     return cache;
 
 free_lines:
-    for (int i=0; i<inited ; i++)
+    for (int i = 0; i < inited; i++)
         free(lines[i].sets);
     free(lines);
 free_cache:
@@ -155,19 +158,22 @@ free_cache:
     return NULL;
 }
 
-static size_t addr_to_line_idx(addr_t addr, addr_t block_size_bit, addr_t idx_size_bit) {
+static size_t addr_to_line_idx(addr_t addr, addr_t block_size_bit,
+                               addr_t idx_size_bit) {
     addr_t avoid_block = addr >> block_size_bit;
     addr_t idx_size = pow_2(idx_size_bit);
     addr_t index_mask = idx_size - 1;
     return avoid_block & index_mask;
 }
 
-static size_t addr_to_tag(addr_t addr, addr_t block_size_bit, addr_t idx_size_bit) {
+static size_t addr_to_tag(addr_t addr, addr_t block_size_bit,
+                          addr_t idx_size_bit) {
     return addr >> (block_size_bit + idx_size_bit);
 }
 
 static struct CacheLine *accessing_line(struct Cache *cache, addr_t addr) {
-    addr_t idx = addr_to_line_idx(addr, cache->block_size_bit, cache->idx_size_bit);
+    addr_t idx =
+        addr_to_line_idx(addr, cache->block_size_bit, cache->idx_size_bit);
     return &cache->lines[idx];
 }
 
@@ -178,7 +184,7 @@ static bool is_entry_hit(struct CacheEntry *entry, addr_t tag) {
 
 static int try_access_line(struct CacheLine *line, addr_t tag, size_t set_num) {
     struct CacheEntry *sets = line->sets;
-    for (int i=0; i<set_num; i++) {
+    for (int i = 0; i < set_num; i++) {
         if (is_entry_hit(&sets[i], tag))
             return i;
     }
@@ -188,7 +194,7 @@ static int try_access_line(struct CacheLine *line, addr_t tag, size_t set_num) {
 static int find_victim(struct CacheLine *line, size_t set_num) {
     struct CacheEntry *sets = line->sets;
     const size_t target = set_num - 1;
-    for (int i=0; i<set_num; i++) {
+    for (int i = 0; i < set_num; i++) {
         if (!sets[i].valid)
             return -1;
         if (sets[i].lru == target)
@@ -199,7 +205,7 @@ static int find_victim(struct CacheLine *line, size_t set_num) {
 
 static int find_slot(struct CacheLine *line, size_t set_num) {
     struct CacheEntry *sets = line->sets;
-    for (int i=0; i<set_num; i++)
+    for (int i = 0; i < set_num; i++)
         if (!sets[i].valid)
             return i;
     return -1;
@@ -209,13 +215,14 @@ static int find_slot(struct CacheLine *line, size_t set_num) {
  * Increase all valid lru values which less than "target".
  */
 static void update_lru(struct CacheEntry *sets, long target, size_t set_num) {
-    for (int i=0; i<set_num; i++)
+    for (int i = 0; i < set_num; i++)
         if (sets[i].valid && sets[i].lru < target)
             sets[i].lru += 1;
 }
 
 // Return true if eviction some entry, false returned otherwise.
-static bool cache_update_miss(struct CacheLine *line, addr_t tag, size_t set_num) {
+static bool cache_update_miss(struct CacheLine *line, addr_t tag,
+                              size_t set_num) {
     int victim = find_victim(line, set_num);
     struct CacheEntry *sets = line->sets;
 
@@ -265,7 +272,7 @@ static AccResult cache_access(struct Cache *cache, addr_t addr) {
 
 static int cache_access_times(struct Cache *cache, addr_t addr, size_t times) {
     int hit_times = 0;
-    for (int i=0; i<times; i++) {
+    for (int i = 0; i < times; i++) {
         AccResult is_hit = cache_access(cache, addr);
         hit_times += is_hit;
     }
@@ -302,7 +309,7 @@ static void free_cache(struct Cache *cache) {
 
     struct CacheLine *lines = cache->lines;
     if (lines) {
-        for (int i=0; i<cache->set_num; i++)
+        for (int i = 0; i < cache->set_num; i++)
             free(lines[i].sets);
     }
     free(lines);
@@ -357,8 +364,8 @@ static bool scan_operation(const char **buf, Operation *op) {
 
 static bool is_hex(char c) {
     switch (c) {
-    case '0'...'9':
-    case 'a'...'f':
+    case '0' ... '9':
+    case 'a' ... 'f':
         return true;
     default:
         return false;
@@ -393,7 +400,8 @@ static bool scan_access_size(const char **buf, size_t *size) {
     return matched == 1;
 }
 
-static bool parse_trace_line(const char *line, ssize_t len, struct Trace *trace) {
+static bool parse_trace_line(const char *line, ssize_t len,
+                             struct Trace *trace) {
     Operation op;
     addr_t addr;
     size_t size;
@@ -402,7 +410,7 @@ static bool parse_trace_line(const char *line, ssize_t len, struct Trace *trace)
 
     if (!scan_address(&line, &addr))
         return false;
-    
+
     if (!scan_access_size(&line, &size))
         return false;
 
@@ -461,17 +469,17 @@ static void verbose(struct Trace *trace, int hits) {
     if (hits == 0) {
         VERBOSE(" miss");
     } else {
-        for (int i=0; i<hits; i++)
+        for (int i = 0; i < hits; i++)
             VERBOSE(" hit");
     }
     VERBOSE(" \n");
 }
 
-int main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]) {
     struct Args parsed;
     parse_arg(argc, argv, &parsed);
-    struct Cache *cache = new_cache(parsed.associativity, parsed.set_index_bits, parsed.block_offset_bits);
+    struct Cache *cache = new_cache(parsed.associativity, parsed.set_index_bits,
+                                    parsed.block_offset_bits);
     if (!cache)
         goto fail;
 
