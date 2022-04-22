@@ -1,3 +1,5 @@
+// @Author justapig9020 <justapig9020@gmail.com>
+
 #include <stddef.h>
 #define _POSIX_C_SOURCE 200809L
 #include <stdio.h>
