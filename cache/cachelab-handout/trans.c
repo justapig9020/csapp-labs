@@ -25,14 +25,29 @@
  * @Author justapig9020 <justapig9020@gmail.com>
  */
 #include "cachelab.h"
+#include <stdbool.h>
 #include <stdio.h>
 
-#define BLOCK_SIZE 32
-#define ENTRIES 32
-#define BLOCK_COUNT(n) ((n * sizeof(n)) / BLOCK_SIZE)
+#define BLOCK_BITS 5
+#define BLOCK_SIZE (1 << BLOCK_BITS)
+#define INDEX_BITS 5
+#define ENTRIES (1 << INDEX_BITS)
+// #define BLOCK_COUNT(n) ((n * sizeof(n)) / BLOCK_SIZE)
 #define INT_PER_BLOCK (BLOCK_SIZE / sizeof(int))
+//#define INT_PER_BLOCK 4
+#define CACHE_BLOCKS_PER_LINE(n) (n / INT_PER_BLOCK)
+
+typedef unsigned long addr_t;
 
 int is_transpose(int M, int N, int A[N][M], int B[M][N]);
+
+addr_t cache_index_of(addr_t addr) {
+    return (addr >> BLOCK_BITS) & (ENTRIES - 1);
+}
+
+bool same_cache_index(void *a, void *b) {
+    return cache_index_of((addr_t)a) == cache_index_of((addr_t)b);
+}
 
 /*
  * transpose_submit - This is the solution transpose function that you
@@ -43,8 +58,106 @@ int is_transpose(int M, int N, int A[N][M], int B[M][N]);
  */
 char transpose_submit_desc[] = "Transpose submission";
 void transpose_submit(int M, int N, int A[N][M], int B[M][N]) {
-    for (int row_block = 0; row_block < BLOCK_COUNT(N); row_block++) {
-        for (int col_block = 0; col_block < BLOCK_COUNT(N); col_block++) {
+    int block_height;
+    for (block_height = 1; block_height < INT_PER_BLOCK; block_height++) {
+        if (same_cache_index(&B[0], &B[block_height]))
+            break;
+    }
+
+    int tmp[INT_PER_BLOCK];
+    for (int row_base = 0; row_base < N; row_base += INT_PER_BLOCK) {
+        for (int col_base = 0; col_base < M; col_base += INT_PER_BLOCK) {
+            int col_offset = 0;
+            while (col_offset < INT_PER_BLOCK) {
+                for (int row = 0; row < INT_PER_BLOCK && (row_base + row) < N; row++) {
+                    for (int col=0; col<block_height && (col_base + col_offset + col) < M; col++) {
+                        tmp[col] = A[row_base + row][col_base + col_offset + col];
+                    }
+                    for (int col=0; col<block_height && (col_base + col_offset + col) < M; col++) {
+                        B[col_base + col_offset + col][row_base + row] = tmp[col];
+                    }
+                }
+                col_offset += block_height;
+            }
+        }
+    }
+}
+
+char trans_block_slice_desc[] = "Trans block slice";
+void trans_block_slice(int M, int N, int A[N][M], int B[M][N]) {
+    int tmp[INT_PER_BLOCK];
+    int row_block, col_block;
+    for (row_block = 0; row_block < CACHE_BLOCKS_PER_LINE(N) - 1; row_block++) {
+        for (col_block = 0; col_block < CACHE_BLOCKS_PER_LINE(M); col_block++) {
+            int row_base = row_block * INT_PER_BLOCK;
+            int col_base = col_block * INT_PER_BLOCK;
+            int col_next_base =
+                (col_block + (row_block + 1) / CACHE_BLOCKS_PER_LINE(N)) *
+                INT_PER_BLOCK;
+            int row_next_base =
+                ((row_block + 1) % CACHE_BLOCKS_PER_LINE(N)) * INT_PER_BLOCK;
+            for (int row = 0; row < INT_PER_BLOCK; row++) {
+                for (int col = 0; col < INT_PER_BLOCK; col++) {
+                    tmp[col] = A[row_base + row][col_base + col];
+                }
+                for (int col = 0; col < INT_PER_BLOCK / 2; col++)
+                    B[col_base + col][row_base + row] = tmp[col];
+                for (int col = 0; col < INT_PER_BLOCK / 2; col++)
+                    B[col_next_base + col][row_next_base + row] =
+                        tmp[col + INT_PER_BLOCK / 2];
+            }
+            col_base += INT_PER_BLOCK / 2;
+            for (int col = 0; col < INT_PER_BLOCK / 2; col++) {
+                for (int row = 0; row < INT_PER_BLOCK; row++) {
+                    B[col_base + col][row_base + row] =
+                        B[col_next_base + col][row_next_base + row];
+                }
+            }
+        }
+    }
+    for (col_block = 0; col_block < CACHE_BLOCKS_PER_LINE(M) - 1; col_block++) {
+        int row_base = row_block * INT_PER_BLOCK;
+        int col_base = col_block * INT_PER_BLOCK;
+        int col_next_base =
+            ((col_block + 1) % CACHE_BLOCKS_PER_LINE(M)) * INT_PER_BLOCK;
+        int row_next_base =
+            (row_block + (col_block + 1) / CACHE_BLOCKS_PER_LINE(M)) *
+            INT_PER_BLOCK;
+        for (int row = 0; row < INT_PER_BLOCK; row++) {
+            for (int col = 0; col < INT_PER_BLOCK; col++) {
+                tmp[col] = A[row_base + row][col_base + col];
+            }
+            for (int col = 0; col < INT_PER_BLOCK / 2; col++)
+                B[col_base + col][row_base + row] = tmp[col];
+            for (int col = 0; col < INT_PER_BLOCK / 2; col++)
+                B[col_next_base + col][row_next_base + row] =
+                    tmp[col + INT_PER_BLOCK / 2];
+        }
+        col_base += INT_PER_BLOCK / 2;
+        for (int col = 0; col < INT_PER_BLOCK / 2; col++) {
+            for (int row = 0; row < INT_PER_BLOCK; row++) {
+                B[col_base + col][row_base + row] =
+                    B[col_next_base + col][row_next_base + row];
+            }
+        }
+    }
+    int row_base = row_block * INT_PER_BLOCK;
+    int col_base = col_block * INT_PER_BLOCK;
+    for (int row = 0; row < INT_PER_BLOCK; row++) {
+        for (int col = 0; col < INT_PER_BLOCK; col++) {
+            tmp[col] = A[row_base + row][col_base + col];
+        }
+        for (int col = 0; col < INT_PER_BLOCK; col++) {
+            B[col_base + col][row_base + row] = tmp[col];
+        }
+    }
+}
+
+char trans_block_and_buf_desc[] = "Trans block and buffer";
+void trans_block_and_buf(int M, int N, int A[N][M], int B[M][N]) {
+    for (int row_block = 0; row_block < CACHE_BLOCKS_PER_LINE(N); row_block++) {
+        for (int col_block = 0; col_block < CACHE_BLOCKS_PER_LINE(M);
+             col_block++) {
             int row_base = row_block * INT_PER_BLOCK;
             int col_base = col_block * INT_PER_BLOCK;
             int tmp0;
@@ -76,7 +189,6 @@ void transpose_submit(int M, int N, int A[N][M], int B[M][N]) {
         }
     }
 }
-
 /*
  * You can define additional transpose functions below. We've defined
  * a simple one below to help you get started.
@@ -109,6 +221,8 @@ void registerFunctions() {
     registerTransFunction(transpose_submit, transpose_submit_desc);
 
     /* Register any additional transpose functions */
+    registerTransFunction(trans_block_slice, trans_block_slice_desc);
+    registerTransFunction(trans_block_and_buf, trans_block_and_buf_desc);
     registerTransFunction(trans, trans_desc);
 }
 
