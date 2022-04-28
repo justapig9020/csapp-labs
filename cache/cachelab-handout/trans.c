@@ -56,8 +56,186 @@ bool same_cache_index(void *a, void *b) {
  *     searches for that string to identify the transpose function to
  *     be graded.
  */
+
+char trans_case_by_case_desc[] = "Trans case by case";
 char transpose_submit_desc[] = "Transpose submission";
-void transpose_submit(int M, int N, int A[N][M], int B[M][N]) {
+void trans_case_by_case(int col_size, int row_size, int A[row_size][col_size],
+                        int B[col_size][row_size]) {
+    int col_base;
+    int row_base;
+    int r;
+    int c;
+    int tmp0;
+    int tmp1;
+    int tmp2;
+    int tmp3;
+    int tmp4;
+    int tmp5;
+    int tmp6;
+    int tmp7; // 12
+    if (col_size == 32) {
+        for (row_base = 0; row_base < row_size; row_base += INT_PER_BLOCK) {
+            for (col_base = 0; col_base < col_size; col_base += INT_PER_BLOCK) {
+                for (r = 0; r < INT_PER_BLOCK; r++) {
+                    tmp0 = A[row_base + r][col_base + 0];
+                    tmp1 = A[row_base + r][col_base + 1];
+                    tmp2 = A[row_base + r][col_base + 2];
+                    tmp3 = A[row_base + r][col_base + 3];
+                    tmp4 = A[row_base + r][col_base + 4];
+                    tmp5 = A[row_base + r][col_base + 5];
+                    tmp6 = A[row_base + r][col_base + 6];
+                    tmp7 = A[row_base + r][col_base + 7];
+
+                    B[col_base + 0][row_base + r] = tmp0;
+                    B[col_base + 1][row_base + r] = tmp1;
+                    B[col_base + 2][row_base + r] = tmp2;
+                    B[col_base + 3][row_base + r] = tmp3;
+                    B[col_base + 4][row_base + r] = tmp4;
+                    B[col_base + 5][row_base + r] = tmp5;
+                    B[col_base + 6][row_base + r] = tmp6;
+                    B[col_base + 7][row_base + r] = tmp7;
+                }
+            }
+        }
+    } else if (col_size == 64) {
+        for (row_base = 0; row_base < row_size; row_base += INT_PER_BLOCK) {
+            for (col_base = 0; col_base < col_size; col_base += INT_PER_BLOCK) {
+                for (r = 0; r < INT_PER_BLOCK / 2; r++) {
+                    tmp0 = A[row_base + r][col_base + 0];
+                    tmp1 = A[row_base + r][col_base + 1];
+                    tmp2 = A[row_base + r][col_base + 2];
+                    tmp3 = A[row_base + r][col_base + 3];
+                    tmp4 = A[row_base + r][col_base + 4];
+                    tmp5 = A[row_base + r][col_base + 5];
+                    tmp6 = A[row_base + r][col_base + 6];
+                    tmp7 = A[row_base + r][col_base + 7];
+
+                    // Top left
+                    B[col_base + 0][row_base + r] = tmp0;
+                    B[col_base + 1][row_base + r] = tmp1;
+                    B[col_base + 2][row_base + r] = tmp2;
+                    B[col_base + 3][row_base + r] = tmp3;
+
+                    // Top right
+                    B[col_base + 0][row_base + r + INT_PER_BLOCK / 2] = tmp4;
+                    B[col_base + 1][row_base + r + INT_PER_BLOCK / 2] = tmp5;
+                    B[col_base + 2][row_base + r + INT_PER_BLOCK / 2] = tmp6;
+                    B[col_base + 3][row_base + r + INT_PER_BLOCK / 2] = tmp7;
+                }
+
+                // Move Top right to buttom left
+                // Here r is works like c
+                for (r = 0; r < INT_PER_BLOCK / 2; r++) {
+                    tmp4 = A[row_base + 4][col_base + r];
+                    tmp5 = A[row_base + 5][col_base + r];
+                    tmp6 = A[row_base + 6][col_base + r];
+                    tmp7 = A[row_base + 7][col_base + r];
+
+                    tmp0 = B[col_base + r][row_base + 0 + INT_PER_BLOCK / 2];
+                    tmp1 = B[col_base + r][row_base + 1 + INT_PER_BLOCK / 2];
+                    tmp2 = B[col_base + r][row_base + 2 + INT_PER_BLOCK / 2];
+                    tmp3 = B[col_base + r][row_base + 3 + INT_PER_BLOCK / 2];
+
+                    B[col_base + r][row_base + 0 + INT_PER_BLOCK / 2] = tmp4;
+                    B[col_base + r][row_base + 1 + INT_PER_BLOCK / 2] = tmp5;
+                    B[col_base + r][row_base + 2 + INT_PER_BLOCK / 2] = tmp6;
+                    B[col_base + r][row_base + 3 + INT_PER_BLOCK / 2] = tmp7;
+
+                    B[col_base + INT_PER_BLOCK / 2 + r][row_base + 0] = tmp0;
+                    B[col_base + INT_PER_BLOCK / 2 + r][row_base + 1] = tmp1;
+                    B[col_base + INT_PER_BLOCK / 2 + r][row_base + 2] = tmp2;
+                    B[col_base + INT_PER_BLOCK / 2 + r][row_base + 3] = tmp3;
+                }
+                for (r = 0; r < INT_PER_BLOCK / 2; r++) {
+                    tmp0 = A[row_base + r + INT_PER_BLOCK / 2][col_base + 4];
+                    tmp1 = A[row_base + r + INT_PER_BLOCK / 2][col_base + 5];
+                    tmp2 = A[row_base + r + INT_PER_BLOCK / 2][col_base + 6];
+                    tmp3 = A[row_base + r + INT_PER_BLOCK / 2][col_base + 7];
+
+                    // Top left
+                    B[col_base + 4][row_base + r + INT_PER_BLOCK / 2] = tmp0;
+                    B[col_base + 5][row_base + r + INT_PER_BLOCK / 2] = tmp1;
+                    B[col_base + 6][row_base + r + INT_PER_BLOCK / 2] = tmp2;
+                    B[col_base + 7][row_base + r + INT_PER_BLOCK / 2] = tmp3;
+                }
+            }
+        }
+    } else if (col_size == 61) {
+        for (row_base = 0; row_base < row_size - INT_PER_BLOCK;
+             row_base += INT_PER_BLOCK) {
+            for (col_base = 0; col_base < col_size - INT_PER_BLOCK;
+                 col_base += INT_PER_BLOCK) {
+                for (r = 0; r < INT_PER_BLOCK; r++) {
+                    tmp0 = A[row_base + r][col_base + 0];
+                    tmp1 = A[row_base + r][col_base + 1];
+                    tmp2 = A[row_base + r][col_base + 2];
+                    tmp3 = A[row_base + r][col_base + 3];
+                    tmp4 = A[row_base + r][col_base + 4];
+                    tmp5 = A[row_base + r][col_base + 5];
+                    tmp6 = A[row_base + r][col_base + 6];
+                    tmp7 = A[row_base + r][col_base + 7];
+
+                    B[col_base + 0][row_base + r] = tmp0;
+                    B[col_base + 1][row_base + r] = tmp1;
+                    B[col_base + 2][row_base + r] = tmp2;
+                    B[col_base + 3][row_base + r] = tmp3;
+                    B[col_base + 4][row_base + r] = tmp4;
+                    B[col_base + 5][row_base + r] = tmp5;
+                    B[col_base + 6][row_base + r] = tmp6;
+                    B[col_base + 7][row_base + r] = tmp7;
+                }
+            }
+            for (c = 0; c < col_size - col_base; c++) {
+                tmp0 = A[row_base + 0][col_base + c];
+                tmp1 = A[row_base + 1][col_base + c];
+                tmp2 = A[row_base + 2][col_base + c];
+                tmp3 = A[row_base + 3][col_base + c];
+                tmp4 = A[row_base + 4][col_base + c];
+                tmp5 = A[row_base + 5][col_base + c];
+                tmp6 = A[row_base + 6][col_base + c];
+                tmp7 = A[row_base + 7][col_base + c];
+                B[col_base + c][row_base + 0] = tmp0;
+                B[col_base + c][row_base + 1] = tmp1;
+                B[col_base + c][row_base + 2] = tmp2;
+                B[col_base + c][row_base + 3] = tmp3;
+                B[col_base + c][row_base + 4] = tmp4;
+                B[col_base + c][row_base + 5] = tmp5;
+                B[col_base + c][row_base + 6] = tmp6;
+                B[col_base + c][row_base + 7] = tmp7;
+            }
+        }
+        for (col_base = 0; col_base < col_size - INT_PER_BLOCK;
+             col_base += INT_PER_BLOCK) {
+            for (r = 0; r < row_size - row_base; r++) {
+                tmp0 = A[row_base + r][col_base + 0];
+                tmp1 = A[row_base + r][col_base + 1];
+                tmp2 = A[row_base + r][col_base + 2];
+                tmp3 = A[row_base + r][col_base + 3];
+                tmp4 = A[row_base + r][col_base + 4];
+                tmp5 = A[row_base + r][col_base + 5];
+                tmp6 = A[row_base + r][col_base + 6];
+                tmp7 = A[row_base + r][col_base + 7];
+
+                B[col_base + 0][row_base + r] = tmp0;
+                B[col_base + 1][row_base + r] = tmp1;
+                B[col_base + 2][row_base + r] = tmp2;
+                B[col_base + 3][row_base + r] = tmp3;
+                B[col_base + 4][row_base + r] = tmp4;
+                B[col_base + 5][row_base + r] = tmp5;
+                B[col_base + 6][row_base + r] = tmp6;
+                B[col_base + 7][row_base + r] = tmp7;
+            }
+        }
+        for (c = col_base; c < col_size; c++) {
+            for (r = row_base; r < row_size; r++) {
+                B[c][r] = A[r][c];
+            }
+        }
+    }
+}
+
+char dynamic_working_set_desc[] = "Dynamic working set";
+void dynamic_working_set(int M, int N, int A[N][M], int B[M][N]) {
     int block_height;
     for (block_height = 1; block_height < INT_PER_BLOCK; block_height++) {
         if (same_cache_index(&B[0], &B[block_height]))
@@ -69,12 +247,19 @@ void transpose_submit(int M, int N, int A[N][M], int B[M][N]) {
         for (int col_base = 0; col_base < M; col_base += INT_PER_BLOCK) {
             int col_offset = 0;
             while (col_offset < INT_PER_BLOCK) {
-                for (int row = 0; row < INT_PER_BLOCK && (row_base + row) < N; row++) {
-                    for (int col=0; col<block_height && (col_base + col_offset + col) < M; col++) {
-                        tmp[col] = A[row_base + row][col_base + col_offset + col];
+                for (int row = 0; row < INT_PER_BLOCK && (row_base + row) < N;
+                     row++) {
+                    for (int col = 0; col < block_height &&
+                                      (col_base + col_offset + col) < M;
+                         col++) {
+                        tmp[col] =
+                            A[row_base + row][col_base + col_offset + col];
                     }
-                    for (int col=0; col<block_height && (col_base + col_offset + col) < M; col++) {
-                        B[col_base + col_offset + col][row_base + row] = tmp[col];
+                    for (int col = 0; col < block_height &&
+                                      (col_base + col_offset + col) < M;
+                         col++) {
+                        B[col_base + col_offset + col][row_base + row] =
+                            tmp[col];
                     }
                 }
                 col_offset += block_height;
@@ -84,71 +269,117 @@ void transpose_submit(int M, int N, int A[N][M], int B[M][N]) {
 }
 
 char trans_block_slice_desc[] = "Trans block slice";
-void trans_block_slice(int M, int N, int A[N][M], int B[M][N]) {
-    int tmp[INT_PER_BLOCK];
-    int row_block, col_block;
-    for (row_block = 0; row_block < CACHE_BLOCKS_PER_LINE(N) - 1; row_block++) {
-        for (col_block = 0; col_block < CACHE_BLOCKS_PER_LINE(M); col_block++) {
-            int row_base = row_block * INT_PER_BLOCK;
-            int col_base = col_block * INT_PER_BLOCK;
-            int col_next_base =
-                (col_block + (row_block + 1) / CACHE_BLOCKS_PER_LINE(N)) *
-                INT_PER_BLOCK;
-            int row_next_base =
-                ((row_block + 1) % CACHE_BLOCKS_PER_LINE(N)) * INT_PER_BLOCK;
-            for (int row = 0; row < INT_PER_BLOCK; row++) {
-                for (int col = 0; col < INT_PER_BLOCK; col++) {
-                    tmp[col] = A[row_base + row][col_base + col];
-                }
-                for (int col = 0; col < INT_PER_BLOCK / 2; col++)
-                    B[col_base + col][row_base + row] = tmp[col];
-                for (int col = 0; col < INT_PER_BLOCK / 2; col++)
-                    B[col_next_base + col][row_next_base + row] =
-                        tmp[col + INT_PER_BLOCK / 2];
+void trans_block_slice(int c_size, int r_size, int A[r_size][c_size],
+                       int B[c_size][r_size]) {
+    // No more than 12 local variables
+    int c_base;
+    int r_base;
+    int r;
+    int c;
+    int tmp0;
+    int tmp1;
+    int tmp2;
+    int tmp3;
+    int next_c_base;
+    int next_r_base; // 10
+    for (c_base = 0; c_base < (c_size - INT_PER_BLOCK);
+         c_base += INT_PER_BLOCK) {
+        for (r_base = 0; r_base <= (r_size - INT_PER_BLOCK);
+             r_base += INT_PER_BLOCK) {
+            // In this loop remaining columns and rows always more than a block
+            // Iterate through matrix block by block
+            next_r_base = r_base + INT_PER_BLOCK;
+            next_c_base = c_base;
+            if (next_r_base > (r_size - INT_PER_BLOCK)) {
+                next_c_base += INT_PER_BLOCK;
+                next_r_base = 0;
             }
-            col_base += INT_PER_BLOCK / 2;
-            for (int col = 0; col < INT_PER_BLOCK / 2; col++) {
-                for (int row = 0; row < INT_PER_BLOCK; row++) {
-                    B[col_base + col][row_base + row] =
-                        B[col_next_base + col][row_next_base + row];
-                }
+            for (r = 0; r < INT_PER_BLOCK; r++) {
+                // Iterate thtough entries in the block
+                // First half block
+                tmp0 = A[r_base + r][c_base + 0];
+                tmp1 = A[r_base + r][c_base + 1];
+                tmp2 = A[r_base + r][c_base + 2];
+                tmp3 = A[r_base + r][c_base + 3];
+                B[c_base + 0][r_base + r] = tmp0;
+                B[c_base + 1][r_base + r] = tmp1;
+                B[c_base + 2][r_base + r] = tmp2;
+                B[c_base + 3][r_base + r] = tmp3;
+
+                // Second half block
+                // Buffer to next B block
+                tmp0 = A[r_base + r][c_base + 4];
+                tmp1 = A[r_base + r][c_base + 5];
+                tmp2 = A[r_base + r][c_base + 6];
+                tmp3 = A[r_base + r][c_base + 7];
+
+                B[next_c_base + 0][next_r_base + r] = tmp0;
+                B[next_c_base + 1][next_r_base + r] = tmp1;
+                B[next_c_base + 2][next_r_base + r] = tmp2;
+                B[next_c_base + 3][next_r_base + r] = tmp3;
+            }
+            // Migrate next B block back to Second half block
+            for (c = 0; c < INT_PER_BLOCK; c++) {
+                tmp0 = B[next_c_base + 0][next_r_base + c];
+                tmp1 = B[next_c_base + 1][next_r_base + c];
+                tmp2 = B[next_c_base + 2][next_r_base + c];
+                tmp3 = B[next_c_base + 3][next_r_base + c];
+                B[c_base + (INT_PER_BLOCK / 2) + 0][r_base + c] = tmp0;
+                B[c_base + (INT_PER_BLOCK / 2) + 1][r_base + c] = tmp1;
+                B[c_base + (INT_PER_BLOCK / 2) + 2][r_base + c] = tmp2;
+                B[c_base + (INT_PER_BLOCK / 2) + 3][r_base + c] = tmp3;
+            }
+        }
+        // Remaining rows
+        for (r = 0; r < (r_size - r_base); r++) {
+            tmp0 = A[r_base + r][c_base + 0];
+            tmp1 = A[r_base + r][c_base + 1];
+            tmp2 = A[r_base + r][c_base + 2];
+            tmp3 = A[r_base + r][c_base + 3];
+            B[c_base + 0][r_base + r] = tmp0;
+            B[c_base + 1][r_base + r] = tmp1;
+            B[c_base + 2][r_base + r] = tmp2;
+            B[c_base + 3][r_base + r] = tmp3;
+
+            tmp0 = A[r_base + r][c_base + 4];
+            tmp1 = A[r_base + r][c_base + 5];
+            tmp2 = A[r_base + r][c_base + 6];
+            tmp3 = A[r_base + r][c_base + 7];
+            B[c_base + 4][r_base + r] = tmp0;
+            B[c_base + 5][r_base + r] = tmp1;
+            B[c_base + 6][r_base + r] = tmp2;
+            B[c_base + 7][r_base + r] = tmp3;
+        }
+    }
+    for (r_base = 0; r_base < (r_size - 2 * INT_PER_BLOCK);
+         r_base += INT_PER_BLOCK) {
+        // Last column block expect last block
+        next_r_base = r_base + INT_PER_BLOCK;
+        next_c_base = c_base;
+        for (r = 0; r < INT_PER_BLOCK; r++) {
+            for (c = 0; c < INT_PER_BLOCK / 2; c++) {
+                if (c >= (c_size - c_base))
+                    break;
+                B[c_base + c][r_base + r] = A[r_base + r][c_base + c];
+            }
+
+            for (c = 0; c < ((c_size - c_base) - (INT_PER_BLOCK / 2)); c++) {
+                B[next_c_base + c][next_r_base + r] =
+                    A[r_base + r][c_base + c + INT_PER_BLOCK / 2];
+            }
+        }
+        // Migrate next B block back to Second half block
+        for (c = 0; c < ((c_size - c_base) - (INT_PER_BLOCK / 2)); c++) {
+            for (r = 0; r < INT_PER_BLOCK; r++) {
+                B[c_base + (INT_PER_BLOCK / 2) + c][r_base + r] =
+                    B[next_c_base + c][next_r_base + r];
             }
         }
     }
-    for (col_block = 0; col_block < CACHE_BLOCKS_PER_LINE(M) - 1; col_block++) {
-        int row_base = row_block * INT_PER_BLOCK;
-        int col_base = col_block * INT_PER_BLOCK;
-        int col_next_base =
-            ((col_block + 1) % CACHE_BLOCKS_PER_LINE(M)) * INT_PER_BLOCK;
-        int row_next_base =
-            (row_block + (col_block + 1) / CACHE_BLOCKS_PER_LINE(M)) *
-            INT_PER_BLOCK;
-        for (int row = 0; row < INT_PER_BLOCK; row++) {
-            for (int col = 0; col < INT_PER_BLOCK; col++) {
-                tmp[col] = A[row_base + row][col_base + col];
-            }
-            for (int col = 0; col < INT_PER_BLOCK / 2; col++)
-                B[col_base + col][row_base + row] = tmp[col];
-            for (int col = 0; col < INT_PER_BLOCK / 2; col++)
-                B[col_next_base + col][row_next_base + row] =
-                    tmp[col + INT_PER_BLOCK / 2];
-        }
-        col_base += INT_PER_BLOCK / 2;
-        for (int col = 0; col < INT_PER_BLOCK / 2; col++) {
-            for (int row = 0; row < INT_PER_BLOCK; row++) {
-                B[col_base + col][row_base + row] =
-                    B[col_next_base + col][row_next_base + row];
-            }
-        }
-    }
-    int row_base = row_block * INT_PER_BLOCK;
-    int col_base = col_block * INT_PER_BLOCK;
-    for (int row = 0; row < INT_PER_BLOCK; row++) {
-        for (int col = 0; col < INT_PER_BLOCK; col++) {
-            tmp[col] = A[row_base + row][col_base + col];
-        }
-        for (int col = 0; col < INT_PER_BLOCK; col++) {
-            B[col_base + col][row_base + row] = tmp[col];
+    // Last block
+    for (r = r_base; r < r_size; r++) {
+        for (c = c_base; c < c_size; c++) {
+            B[c][r] = A[r][c];
         }
     }
 }
@@ -218,9 +449,10 @@ void trans(int M, int N, int A[N][M], int B[M][N]) {
  */
 void registerFunctions() {
     /* Register your solution function */
-    registerTransFunction(transpose_submit, transpose_submit_desc);
+    registerTransFunction(trans_case_by_case, transpose_submit_desc);
 
     /* Register any additional transpose functions */
+    registerTransFunction(dynamic_working_set, dynamic_working_set_desc);
     registerTransFunction(trans_block_slice, trans_block_slice_desc);
     registerTransFunction(trans_block_and_buf, trans_block_and_buf_desc);
     registerTransFunction(trans, trans_desc);
